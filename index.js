@@ -1,66 +1,178 @@
-const audioSrc = '/audios/01.mp3';
-const audioCtx = new AudioContext();
+// AUDIO-RELATED DEFINITIONS
 
-const canvas = document.querySelector('canvas');
-const canvasCtx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const audioSrc = 'song.mp3';
 
-const visualizationHeight = canvas.height / 2;
-const color1 = [44, 94, 67];
-const color2 = [202, 100, 78];
-let hueOffset = 0;
+let audioEl;
+let audioData;
+let audioCtx;
+let sourceNode;
+let analyserNode;
 
-function loadAudio(path) {
-    return fetch(path).then(response => response.arrayBuffer());
+async function loadAudio() {
+    const audioBlob = await fetch(audioSrc)
+        .then(response => response.blob());
+
+    audioEl = new Audio();
+    audioEl.src = URL.createObjectURL(audioBlob);
 }
 
-function draw(audioData) {
-    const interval = Math.ceil(canvas.width / audioData.length);
-    const center = Math.ceil(canvas.height / 2);
+async function setupAudio() {
+    audioCtx = new AudioContext();
 
-    const gradient = canvasCtx.createLinearGradient(0, 0, canvas.width, 0);
-    gradient.addColorStop(0, `hsl(${color1[0] + hueOffset}, ${color1[1]}%, ${color1[2]}%)`);
-    gradient.addColorStop(1, `hsl(${color2[0] + hueOffset}, ${color2[1]}%, ${color2[2]}%)`);
-    hueOffset += 0.1;
+    sourceNode = audioCtx.createMediaElementSource(audioEl);
 
-    canvasCtx.lineWidth = 5;
-    canvasCtx.strokeStyle = gradient;
-    canvasCtx.fillStyle = '#111';
-
-    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
-    canvasCtx.beginPath();
-    canvasCtx.moveTo(0, center + audioData[0]);
-
-    for (let i = 1, l = audioData.length; i < l; i++) {
-        canvasCtx.lineTo(i * interval, audioData[i] * visualizationHeight + center);
-    }
-
-    canvasCtx.stroke();
-}
-
-(async () => {
-    const audio = await loadAudio(audioSrc);
-
-    const sourceNode = audioCtx.createBufferSource();
-    sourceNode.buffer = await audioCtx.decodeAudioData(audio);
-
-    const analyserNode = audioCtx.createAnalyser();
-    const audioData = new Float32Array(analyserNode.frequencyBinCount);
+    analyserNode = audioCtx.createAnalyser();
+    audioData = new Float32Array(analyserNode.frequencyBinCount);
 
     sourceNode.connect(analyserNode);
     analyserNode.connect(audioCtx.destination);
+}
 
-    document.addEventListener('click', () => {
-        sourceNode.start();
-    }, {once: true});
+function startAudio() {
+    return audioEl.play();
+}
 
-    (function renderLoop() {
-        requestAnimationFrame(renderLoop);
+function stopAudio() {
+    return audioEl.pause();
+}
 
-        analyserNode.getFloatTimeDomainData(audioData);
-        draw(audioData);
-    })();
+function isPlayingAudio() {
+    return !audioEl.paused;
+}
+
+function readAudio() {
+    analyserNode.getFloatTimeDomainData(audioData);
+}
+
+
+
+// GRAPHICS-RELATED DEFINITIONS
+
+const artworkSrc = 'artwork.jpg';
+
+let canvas;
+let canvasCtx;
+let artworkEl;
+let isLooping = false;
+let hueRotate = 0;
+
+const CANVAS_SIZE = 500;
+const RADIUS_BASE = 150;
+const RADIUS_MAX_DELTA = 70;
+const LINES_COUNT = 90;
+const ANGLE_INTERVAL = Math.PI * 2 / LINES_COUNT;
+
+async function setupGraphics() {
+    const artworkBlob = await fetch(artworkSrc)
+        .then(response => response.blob());
+
+    artworkEl = new Image();
+    artworkEl.src = URL.createObjectURL(artworkBlob);
+
+    canvas = document.querySelector('canvas');
+    canvasCtx = canvas.getContext('2d');
+
+    canvas.width = 500;
+    canvas.height = 500;
+}
+
+function loopGraphics() {
+    requestAnimationFrame(loopGraphics);
+
+    if (isPlayingAudio()) {
+        readAudio();
+        drawGraphics();
+    }
+}
+
+function drawGraphics() {
+    const center = getCenter();
+    const increment = Math.floor(audioData.length / LINES_COUNT);
+
+    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+    canvasCtx.drawImage(artworkEl, 0, 0, canvas.width, canvas.height);
+
+    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const gradient = canvasCtx.createRadialGradient(
+        center.x, center.y, RADIUS_BASE - RADIUS_MAX_DELTA,
+        center.x, center.y, RADIUS_BASE + RADIUS_MAX_DELTA
+    );
+    gradient.addColorStop(0, `hsl(${214 + hueRotate}, 97%, 59%)`);
+    gradient.addColorStop(1, `hsl(${336 + hueRotate}, 88%, 46%)`);
+    hueRotate += 0.5;
+
+    canvasCtx.strokeStyle = gradient;
+    canvasCtx.lineWidth = 10;
+    canvasCtx.lineCap = 'round';
+
+    for (let i = 0; i < LINES_COUNT; i++) {
+        const angle = ANGLE_INTERVAL * i;
+        const distance = getDataValue(i) * RADIUS_MAX_DELTA + RADIUS_BASE;
+
+        const basePoint = getPointAtAngle(center, angle, RADIUS_BASE);
+        const dataPoint = getPointAtAngle(center, angle, distance);
+
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(basePoint.x, basePoint.y);
+        canvasCtx.lineTo(dataPoint.x, dataPoint.y);
+        canvasCtx.stroke();
+    }
+}
+
+function getCenter() {
+    return {
+        x: canvas.width / 2,
+        y: canvas.height / 2
+    };
+}
+
+function getPointAtAngle(origin, angle, distance) {
+    return {
+        x: Math.cos(angle) * distance + origin.x,
+        y: Math.sin(angle) * distance + origin.y
+    };
+}
+
+function getDataValue(i) {
+    const size = audioData.length / LINES_COUNT;
+    const index = i * size;
+    const offset = Math.floor(size / 2);
+    const start = index - offset * 8;
+    const end = index + offset * 8;
+
+    const values = [];
+    if (start < 0) {
+        values.push(...audioData.slice(start + audioData.length));
+        values.push(...audioData.slice(0, end));
+    } else if (end >= audioData.length) {
+        values.push(...audioData.slice(start));
+        values.push(...audioData.slice(0, end - audioData.length));
+    } else {
+        values.push(...audioData.slice(start, end));
+    }
+
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+
+
+// APP INITIALIZATION
+
+(async () => {
+    await loadAudio();
+    await setupAudio();
+    await setupGraphics();
+
+    document.addEventListener('click', async () => {
+        if (!isLooping) {
+            isLooping = true;
+            loopGraphics();
+        }
+
+        return isPlayingAudio()
+            ? await stopAudio()
+            : await startAudio();
+    });
 })();
