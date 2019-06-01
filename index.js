@@ -188,24 +188,48 @@ function getDataValue(i) {
 const button = document.querySelector('.pip');
 const video = document.createElement('video');
 
-if (document.pictureInPictureEnabled) {
+if (isPiPSupported()) {
     button.addEventListener('click', async e => {
         if (isPlayingAudio()) {
             e.stopPropagation();
         }
 
-        if (!document.pictureInPictureElement) {
-            video.srcObject = canvas.captureStream();
-
-            await video.play();
-            await video.requestPictureInPicture();
+        if (isPiPActive()) {
+            await exitPiP();
         } else {
-            await document.exitPictureInPicture();
+            await enterPiP();
         }
     });
 } else {
     button.disabled = true;
     button.title = 'Picture-in-Picture is not supported.';
+}
+
+function isPiPSupported() {
+    return document.pictureInPictureEnabled;
+}
+
+function isPiPActive() {
+    return document.pictureInPictureElement;
+}
+
+async function enterPiP() {
+    video.srcObject = canvas.captureStream();
+
+    await video.play();
+    await video.requestPictureInPicture();
+}
+
+async function exitPiP() {
+    await document.exitPictureInPicture();
+}
+
+function startVideo() {
+    return video.play();
+}
+
+function stopVideo() {
+    return video.pause();
 }
 
 if (navigator.mediaSession) {
@@ -219,11 +243,11 @@ if (navigator.mediaSession) {
 
     navigator.mediaSession.setActionHandler('play', async () => {
         await startAudio();
-        await video.play();
+        await startVideo();
     });
     navigator.mediaSession.setActionHandler('pause', async () => {
         await stopAudio();
-        await video.pause();
+        await stopVideo();
     });
 }
 
@@ -244,8 +268,12 @@ if (navigator.mediaSession) {
             loopGraphics();
         }
 
-        return isPlayingAudio()
-            ? await stopAudio()
-            : await startAudio();
+        if (isPlayingAudio()) {
+            await stopAudio();
+            await stopVideo();
+        } else {
+            await startAudio();
+            await startVideo();
+        }
     });
 })();
