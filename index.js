@@ -19,12 +19,19 @@ function loadAudio() {
 }
 
 async function setupAudio() {
-    audioCtx = new AudioContext();
+    // Safari: webkitAudioContext
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     sourceNode = audioCtx.createMediaElementSource(audioEl);
 
     analyserNode = audioCtx.createAnalyser();
-    audioData = new Float32Array(analyserNode.frequencyBinCount);
+    if (analyserNode.getFloatTimeDomainData) {
+        audioData = new Float32Array(analyserNode.frequencyBinCount);
+    } else {
+        // Safari: Only supports getByteTimeDomainData, which requires a
+        // Uint8Array object.
+        audioData = new Uint8Array(analyserNode.frequencyBinCount);
+    }
 
     sourceNode.connect(analyserNode);
     analyserNode.connect(audioCtx.destination);
@@ -43,7 +50,12 @@ function isPlayingAudio() {
 }
 
 function readAudio() {
-    analyserNode.getFloatTimeDomainData(audioData);
+    if (analyserNode.getFloatTimeDomainData) {
+        analyserNode.getFloatTimeDomainData(audioData);
+    } else {
+        // Safari: Doesn't have getFloatTimeDomainData yet.
+        analyserNode.getByteTimeDomainData(audioData);
+    }
 }
 
 
@@ -157,7 +169,16 @@ function getDataValue(i) {
         values.push(...audioData.slice(start, end));
     }
 
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
+    const isUint8Array = audioData instanceof Uint8Array;
+
+    return values.reduce((sum, value) => {
+        if (isUint8Array) {
+            // Safari: We transform the Uint8Array data to make it look as if
+            // it's a Float32Array data.
+            return sum + (value / 255 - 0.5);
+        }
+        return sum + value;
+    }, 0) / values.length;
 }
 
 
