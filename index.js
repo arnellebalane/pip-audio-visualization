@@ -208,6 +208,25 @@ if (document.pictureInPictureEnabled) {
     button.title = 'Picture-in-Picture is not supported.';
 }
 
+if (navigator.mediaSession) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Lights',
+        artist: 'Sappheiros',
+        artwork: [
+            {src: 'artwork.jpg', sizes: '500x500', type: 'image/jpg'}
+        ]
+    });
+
+    navigator.mediaSession.setActionHandler('play', async () => {
+        await startAudio();
+        await video.play();
+    });
+    navigator.mediaSession.setActionHandler('pause', async () => {
+        await stopAudio();
+        await video.pause();
+    });
+}
+
 
 
 // APP INITIALIZATION
