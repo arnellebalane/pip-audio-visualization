@@ -94,7 +94,7 @@ function drawGraphics() {
 
     if (!isLooping) return;
 
-    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
     const center = getCenter();
@@ -158,6 +158,33 @@ function getDataValue(i) {
     }
 
     return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+
+
+// PICTURE-IN-PICTURE BEHAVIOR
+
+const button = document.querySelector('.pip');
+const video = document.createElement('video');
+
+if (document.pictureInPictureEnabled) {
+    button.addEventListener('click', async e => {
+        if (isPlayingAudio()) {
+            e.stopPropagation();
+        }
+
+        if (!document.pictureInPictureElement) {
+            video.srcObject = canvas.captureStream();
+
+            await video.play();
+            await video.requestPictureInPicture();
+        } else {
+            await document.exitPictureInPicture();
+        }
+    });
+} else {
+    button.disabled = true;
+    button.title = 'Picture-in-Picture is not supported.';
 }
 
 
