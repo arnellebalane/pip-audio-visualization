@@ -8,12 +8,14 @@ let audioCtx;
 let sourceNode;
 let analyserNode;
 
-async function loadAudio() {
-    const audioBlob = await fetch(audioSrc)
-        .then(response => response.blob());
+function loadAudio() {
+    return new Promise(resolve => {
+        audioEl = new Audio();
+        audioEl.oncanplaythrough = resolve;
 
-    audioEl = new Audio();
-    audioEl.src = URL.createObjectURL(audioBlob);
+        audioEl.src = audioSrc;
+        audioEl.load();
+    });
 }
 
 async function setupAudio() {
@@ -63,11 +65,12 @@ const LINES_COUNT = 90;
 const ANGLE_INTERVAL = Math.PI * 2 / LINES_COUNT;
 
 async function setupGraphics() {
-    const artworkBlob = await fetch(artworkSrc)
-        .then(response => response.blob());
+    await new Promise(resolve => {
+        artworkEl = new Image();
+        artworkEl.onload = resolve;
 
-    artworkEl = new Image();
-    artworkEl.src = URL.createObjectURL(artworkBlob);
+        artworkEl.src = artworkSrc;
+    });
 
     canvas = document.querySelector('canvas');
     canvasCtx = canvas.getContext('2d');
@@ -86,14 +89,15 @@ function loopGraphics() {
 }
 
 function drawGraphics() {
-    const center = getCenter();
-    const increment = Math.floor(audioData.length / LINES_COUNT);
-
     canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
     canvasCtx.drawImage(artworkEl, 0, 0, canvas.width, canvas.height);
 
+    if (!isLooping) return;
+
     canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
     canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const center = getCenter();
 
     const gradient = canvasCtx.createRadialGradient(
         center.x, center.y, RADIUS_BASE - RADIUS_MAX_DELTA,
@@ -162,12 +166,14 @@ function getDataValue(i) {
 
 (async () => {
     await loadAudio();
-    await setupAudio();
     await setupGraphics();
+    drawGraphics();
 
     document.addEventListener('click', async () => {
         if (!isLooping) {
             isLooping = true;
+
+            await setupAudio();
             loopGraphics();
         }
 
